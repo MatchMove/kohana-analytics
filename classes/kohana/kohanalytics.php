@@ -4,7 +4,7 @@ abstract class Kohana_Kohanalytics
 {
 	// Kohanalytics instance
 	protected static $_instance;
-	
+
 	/**
 	 * Singleton pattern
 	 *
@@ -15,7 +15,7 @@ abstract class Kohana_Kohanalytics
 		if ( ! isset(Kohanalytics::$_instance))
 		{
 			// Load the configuration for this type
-			$config = Kohana::config('kohanalytics');
+			$config = Kohana::$config->load('kohanalytics');
 
 			// Create a new session instance
 			Kohanalytics::$_instance = new Kohanalytics($config);
@@ -23,13 +23,10 @@ abstract class Kohana_Kohanalytics
 	
 		return Kohanalytics::$_instance;
 	}
-	
+
 	protected $_config;
 	protected $_gapi;
-	
-	protected $start_date;
-	protected $end_date;
-	
+
 	/**
 	 * Loads configuration options.
 	 *
@@ -47,43 +44,56 @@ abstract class Kohana_Kohanalytics
 		
 		// Set the default start and end dates. Maybe take this into config?
 		$this->start_date = date('Y-m-d', strtotime('1 month ago'));
-		$this->end_date = date('Y-m-d');
+		$this->end_date   = date('Y-m-d');
 	}
-	
-	public function request_account_data()
-	{
-		return $this->_gapi->requestAccountData();
-	}
-	
-	public function daily_visit_count($start_date = FALSE, $end_date = FALSE)
+
+    /**
+     * Statistics per day
+     * 
+     * @param string $start_date
+     * @param string $end_date
+     * @param mixed $metrics
+     * @return array
+     */
+	public function daily_visit_count($start_date = FALSE, $end_date = FALSE, $metrics = array('pageviews', 'visits'))
 	{
 		if ( ! $start_date)
 		{
 			$start_date = date('Y-m-d', strtotime('1 month ago'));
 		}
-		
+
 		if ( ! $end_date)
 		{
 			$end_date = date('Y-m-d');
 		}
-	
+
 		// Work out the size for the container needed to hold the results, else we get results missed!
-    $days = floor((strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24)) + 2;
-	
-		$results = $this->_gapi->requestReportData($this->_config['report_id'], array('date'), array('visits'), NULL, NULL, $start_date, $end_date, 1, $days);
-	
+        $days = floor((strtotime($end_date) - strtotime($start_date)) / Date::DAY) + 2;
+
+		$results = $this->_gapi->requestReportData($this->_config['report_id'], array('date'), $metrics, NULL, NULL, $start_date, $end_date, 1, $days);
+
 		$visits = array();
 		foreach ($results as $r)
-		{	
-			$visits[$r->getDate()] = $r->getVisits();
+		{
+            foreach ($metrics as $metric)
+            {
+                $visits[$r->getDate()][$metric] = $r->{'get'.ucwords($metric)}();
+            }
 		}
-		
 		ksort($visits);
-	
+
 		return $visits;
 	}
-	
-	public function monthly_visit_count($start_date = FALSE, $end_date = FALSE)
+
+    /**
+     * Statistica per month
+     * 
+     * @param string $start_date
+     * @param string $end_date
+     * @param mixed $metrics
+     * @return array
+     */
+	public function monthly_visit_count($start_date = FALSE, $end_date = FALSE, $metrics = array('pageviews', 'visits'))
 	{
 		if ( ! $start_date)
 		{
@@ -94,39 +104,50 @@ abstract class Kohana_Kohanalytics
 		{
 			$end_date = date('Y-m-d', strtotime('last day of last month'));
 		}
-	
+
 		// Work out the size for the container needed to hold the results, else we get results missed!
-    $months = floor((strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24 * 30)) + 2;
-	
-		$results = $this->_gapi->requestReportData($this->_config['report_id'], array('month'), array('visits'), array('-month'), NULL, $start_date, $end_date, 1, $months);
-	
+        $months = floor((strtotime($end_date) - strtotime($start_date)) / Date::MONTH) + 2;
+
+		$results = $this->_gapi->requestReportData($this->_config['report_id'], array('month'), $metrics, array('-month'), NULL, $start_date, $end_date, 1, $months);
+
 		$visits = array();
-		foreach ($results as $r)
-		{	
-			if ($r->getVisits() > 0)
-			{
-				$visits[$r->getMonth()] = $r->getVisits();
-			}
-		}
-	
+        foreach ($results as $r)
+        {
+            foreach ($metrics as $metric)
+            {
+                $visits[$r->getMonth()][$metric] = $r->{'get'.ucwords($metric)}();
+            }
+        }
 		return $visits;
 	}
-	
-	public function query($dimension, $metric, $sort = NULL, $max_results = NULL)
+
+    /**
+     * Custom statistics
+     * 
+     * @param mixed $dimension
+     * @param mixed $metrics
+     * @param mixed $sort
+     * @param mixed $max_results
+     * @return array
+     */
+	public function query($dimension, array $metrics, $sort = NULL, $max_results = NULL)
 	{
 		if ( ! is_null($sort))
 		{
 			$sort = array($sort);
 		}
-		
-		$results = $this->_gapi->requestReportData($this->_config['report_id'], array($dimension), array($metric), $sort, NULL, $this->start_date, $this->end_date, 1, $max_results);
-		
+
+		$results = $this->_gapi->requestReportData($this->_config['report_id'], array($dimension), $metrics, $sort, NULL, $this->start_date, $this->end_date, 1, $max_results);
+
 		$data = array();
-		foreach ($results as $result)
+		foreach ($results as $r)
 		{
-			$data[$result->{'get'.ucwords($dimension)}()] = $result->{'get'.ucwords($metric)}();
+            foreach ($metrics as $metric)
+            {
+			    $data[$r->{'get'.ucwords($dimension)}()][$metric] = $r->{'get'.ucwords($metric)}();
+            }
 		}
-		
+
 		return $data;
 	}
 }
