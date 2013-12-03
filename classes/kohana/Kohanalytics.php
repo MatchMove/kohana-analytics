@@ -43,8 +43,8 @@ abstract class Kohana_Kohanalytics
 		$this->_gapi = new gapi($this->_config['username'], $this->_config['password']);
 		
 		// Set the default start and end dates. Maybe take this into config?
-		$this->start_date = date('Y-m-d', strtotime('1 month ago'));
-		$this->end_date   = date('Y-m-d');
+		$this->start_date = date('Y-m-d', strtotime('1 day ago'));
+		$this->end_date   = date('Y-m-d', strtotime('1 day ago'));
 	}
 
     /**
